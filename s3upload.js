@@ -122,6 +122,9 @@
             return this_s3upload.onProgress(xhr, file, percentLoaded, percentLoaded === 100 ? 'Finalizing.' : 'Uploading.');
           }
         };
+        xhr.onabort = function() {
+          return this_s3upload.onAbort(file, 'XHR Cancelled by user');
+        };
       }
       xhr.setRequestHeader('Content-Type', file.type);
       xhr.setRequestHeader('x-amz-acl', 'public-read');
