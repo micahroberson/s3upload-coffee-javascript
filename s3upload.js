@@ -7,6 +7,8 @@
     S3Upload.prototype.s3_sign_put_url = '/signS3put';
 
     S3Upload.prototype.file_dom_selector = '#file_upload';
+    
+    S3Upload.prototype.files_dropped = false;
 
     S3Upload.prototype.onFinishS3Put = function(public_url) {
       return console.log('base.onFinishS3Put()', public_url);
@@ -27,8 +29,23 @@
     function S3Upload(options) {
       if (options == null) options = {};
       _.extend(this, options);
-      this.handleFileSelect(jQuery(this.file_dom_selector).get(0));
+      if(this.files_dropped) // Expects this.file_list to be set. ie. this.uploadToS3({ files_dropped: true, file_list: e.dataTransfer.files });
+        this.handleFileDrop(this.file_list);
+      else
+        this.handleFileSelect($(this.file_dom_selector).get(0));
     }
+    
+    S3Upload.prototype.handleFileDrop = function(file_list) {
+      var f, output, _i, _len;
+      output = [];
+      this._results = [];
+      for (_i = 0, _len = file_list.length; _i < _len; _i++) {
+        f = file_list[_i];
+        this._results.push(this.uploadFile(f));
+        this.onProgress(null, f, 0, 'Upload started.');
+      }
+      return this._results;
+    };
 
     S3Upload.prototype.handleFileSelect = function(file_element) {
       var f, files, output, _i, _len;
