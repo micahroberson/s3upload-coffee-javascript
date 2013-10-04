@@ -8,6 +8,7 @@ class window.S3Upload
 	s3_object_name: 'default_name' # setting an object name is not recommended on the client side, override or namespace on server side
 	s3_sign_put_url: '/signS3put'
 	file_dom_selector: '#file_upload'
+	files_dropped: false
 
 	onFinishS3Put: (public_url) ->
 		console.log 'base.onFinishS3Put()', public_url
@@ -17,19 +18,34 @@ class window.S3Upload
 
 	onError: (status) ->
 		console.log 'base.onError()', status
+		
+	onAbort: (file, status) ->
+		console.log 'base.onAbort()', status
 
 	# Don't override these
 
 	constructor: (options = {}) ->
 		_.extend(this, options)
-		@handleFileSelect jQuery(@file_dom_selector).get(0)
+		if @files_dropped
+			@handleFileDrop(@file_list)
+		else
+			@handleFileSelect jQuery(@file_dom_selector).get(0)
+			
+	handleFileDrop: (file_list) ->
+		@_results = []
+		for f in file_list
+			@_results.push(@uploadFile(f))
+			@onProgress(null, f, 0, 'Upload started.')
+		@_results
 
 	handleFileSelect: (file_element) ->
-		@onProgress 0, 'Upload started.'
+		@_results = []
 		files = file_element.files
 		output = []
 		for f in files
-			@uploadFile(f)
+			@_results.push(@uploadFile(f))
+			@onProgress null, f, 0, 'Upload started.'
+		@_results
 
 	createCORSRequest: (method, url) ->
 		xhr = new XMLHttpRequest()
@@ -75,17 +91,20 @@ class window.S3Upload
 			xhr.onload = ->
 				if xhr.status == 200
 					this_s3upload.onProgress 100, 'Upload completed.'
-					this_s3upload.onFinishS3Put public_url
+					this_s3upload.onFinishS3Put public_url, file
 				else
-					this_s3upload.onError 'Upload error: ' + xhr.status
+					this_s3upload.onError file, 'Upload error: ' + xhr.status
 
 			xhr.onerror = ->
-				this_s3upload.onError 'XHR error.'
+				this_s3upload.onError file, 'XHR error.'
 
 			xhr.upload.onprogress = (e) ->
 				if e.lengthComputable
 					percentLoaded = Math.round (e.loaded / e.total) * 100
-					this_s3upload.onProgress percentLoaded, if percentLoaded == 100 then 'Finalizing.' else 'Uploading.'
+					this_s3upload.onProgress xhr, file, percentLoaded, if percentLoaded == 100 then 'Finalizing.' else 'Uploading.'
+
+			xhr.onabort = () ->
+				this_s3upload.onAbort file, 'XHR Cancelled by user'
 
 		xhr.setRequestHeader 'Content-Type', file.type
 		xhr.setRequestHeader 'x-amz-acl', 'public-read'
